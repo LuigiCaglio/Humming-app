@@ -62,8 +62,82 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
+      flex-shrink: 0;
       -webkit-tap-highlight-color: transparent;
     }
+
+    .project-btn {
+      flex: 1;
+      margin: 0 10px;
+      height: 36px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      cursor: pointer;
+      overflow: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .project-btn-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 150px;
+    }
+
+    /* ── Projects sheet ── */
+    .sheet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .btn-new {
+      height: 34px;
+      padding: 0 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .project-list { display: flex; flex-direction: column; }
+
+    .project-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .project-row:last-child { border-bottom: none; }
+
+    .project-row-name {
+      flex: 1;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 2px 0;
+    }
+
+    .project-row.active .project-row-name {
+      color: var(--accent2);
+      font-weight: 700;
+    }
+
+    .project-row-actions { display: flex; gap: 8px; }
 
     /* ── Transport ── */
     .transport {
@@ -557,6 +631,10 @@
 
 <header>
   <div class="app-title">Humming</div>
+  <button class="project-btn" id="projectBtn">
+    <span class="project-btn-name" id="projectName">Project 1</span>
+    <span style="opacity:0.5;font-size:11px">▾</span>
+  </button>
   <button class="btn-header" id="settingsBtn" title="Settings">⚙</button>
 </header>
 
@@ -588,6 +666,18 @@
 <div class="export-bar" id="exportBar">
   <button class="btn btn-export" id="exportMixBtn">↓ Mix (WAV)</button>
   <button class="btn btn-export" id="exportAllBtn">↓ All Tracks</button>
+</div>
+
+<!-- Projects bottom sheet -->
+<div class="settings-overlay" id="projectsOverlay">
+  <div class="settings-sheet">
+    <div class="sheet-header">
+      <div class="settings-title">Projects</div>
+      <button class="btn-new" id="newProjectBtn">+ New</button>
+    </div>
+    <div class="project-list" id="projectList"></div>
+    <button class="btn-done" id="closeProjectsBtn">Done</button>
+  </div>
 </div>
 
 <!-- Settings bottom sheet -->
@@ -656,7 +746,9 @@
 // ─── State ────────────────────────────────────────────────────────────────────
 
 const state = {
-  tracks: [],       // { id, name, blob, buffer, duration, gainNode, muted }
+  tracks: [],            // { id, name, blob, buffer, duration, gainNode, muted, projectId }
+  projects: [],          // { id, name, createdAt }
+  activeProjectId: null,
   settings: { metronomeCountIn: true, metronomePlayback: false, bpm: 120, countInBars: 1 },
   isRecording: false,
   isPlaying: false,
@@ -674,11 +766,18 @@ let db;
 
 async function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open('humming-v1', 1);
+    const req = indexedDB.open('humming-v1', 2);
     req.onupgradeneeded = e => {
       const d = e.target.result;
-      if (!d.objectStoreNames.contains('tracks'))   d.createObjectStore('tracks',   { keyPath: 'id' });
-      if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings', { keyPath: 'key' });
+      const old = e.oldVersion;
+      if (old < 1) {
+        d.createObjectStore('tracks',   { keyPath: 'id' });
+        d.createObjectStore('settings', { keyPath: 'key' });
+      }
+      if (old < 2) {
+        d.createObjectStore('projects', { keyPath: 'id' });
+        d.createObjectStore('appstate', { keyPath: 'key' });
+      }
     };
     req.onsuccess = e => resolve(e.target.result);
     req.onerror   = e => reject(e.target.error);
@@ -729,6 +828,7 @@ async function persistTrack(track) {
     duration: track.duration,
     volume: track.gainNode.gain.value,
     muted: track.muted,
+    projectId: track.projectId,
   });
 }
 
@@ -892,6 +992,7 @@ async function stopRecording() {
     duration: buffer.duration,
     gainNode,
     muted: false,
+    projectId: state.activeProjectId,
   };
 
   state.tracks.push(track);
@@ -1028,6 +1129,114 @@ async function exportSingleTrack(track) {
   const rendered = await offline.startRendering();
   download(encodeWAV(rendered), `${track.name.toLowerCase().replace(/\s+/g, '-')}.wav`);
   setStatus('Track exported', null);
+}
+
+// ─── Projects ─────────────────────────────────────────────────────────────────
+
+async function loadProject(projectId) {
+  if (state.isRecording) await stopRecording();
+  else stopPlayback();
+
+  // Disconnect existing gain nodes to free resources
+  state.tracks.forEach(t => t.gainNode.disconnect());
+  state.tracks = [];
+  state.activeProjectId = projectId;
+  await dbPut('appstate', { key: 'activeProjectId', value: projectId });
+
+  const allRows = await dbGetAll('tracks');
+  const rows = allRows.filter(r => r.projectId === projectId);
+  if (rows.length) {
+    const ac = ctx();
+    for (const row of rows) {
+      try {
+        const buffer   = await decodeBlob(row.blob);
+        const gainNode = ac.createGain();
+        gainNode.connect(ac.destination);
+        gainNode.gain.value = row.volume ?? 1.0;
+        state.tracks.push({ id: row.id, name: row.name, blob: row.blob, buffer,
+          duration: row.duration, gainNode, muted: row.muted ?? false, projectId });
+      } catch (e) { console.warn('Could not load track', row.id, e); }
+    }
+  }
+
+  updateProjectUI();
+  renderTracks();
+  updateUI();
+  setStatus('Ready', null);
+}
+
+async function createProject(name) {
+  const project = { id: Date.now().toString(), name, createdAt: Date.now() };
+  await dbPut('projects', project);
+  state.projects.push(project);
+  await loadProject(project.id);
+  renderProjectList();
+}
+
+async function renameProject(id, newName) {
+  const project = state.projects.find(p => p.id === id);
+  if (!project) return;
+  project.name = newName;
+  await dbPut('projects', project);
+  updateProjectUI();
+  renderProjectList();
+}
+
+async function deleteProject(id) {
+  if (state.projects.length <= 1) return;
+  const allTracks = await dbGetAll('tracks');
+  for (const t of allTracks.filter(t => t.projectId === id)) {
+    await dbDelete('tracks', t.id);
+  }
+  await dbDelete('projects', id);
+  state.projects = state.projects.filter(p => p.id !== id);
+  if (state.activeProjectId === id) {
+    await loadProject(state.projects[0].id);
+  }
+  renderProjectList();
+}
+
+function updateProjectUI() {
+  const p = state.projects.find(p => p.id === state.activeProjectId);
+  document.getElementById('projectName').textContent = p ? p.name : 'Project';
+}
+
+function renderProjectList() {
+  const list = document.getElementById('projectList');
+  list.innerHTML = '';
+  state.projects.forEach(project => {
+    const row = document.createElement('div');
+    row.className = 'project-row' + (project.id === state.activeProjectId ? ' active' : '');
+    row.innerHTML = `
+      <div class="project-row-name">${project.name}</div>
+      <div class="project-row-actions">
+        <button class="btn-icon rename-btn" title="Rename">✎</button>
+        ${state.projects.length > 1 ? '<button class="btn-icon del-project-btn" title="Delete">✕</button>' : ''}
+      </div>
+    `;
+
+    row.querySelector('.project-row-name').addEventListener('click', async () => {
+      if (project.id !== state.activeProjectId) {
+        await loadProject(project.id);
+        renderProjectList();
+      }
+    });
+
+    row.querySelector('.rename-btn').addEventListener('click', () => {
+      const newName = prompt('Project name:', project.name);
+      if (newName && newName.trim()) renameProject(project.id, newName.trim());
+    });
+
+    if (state.projects.length > 1) {
+      row.querySelector('.del-project-btn').addEventListener('click', async () => {
+        if (confirm(`Delete "${project.name}" and all its tracks?`)) {
+          await deleteProject(project.id);
+        }
+      });
+    }
+
+    list.appendChild(row);
+  });
 }
 
 // ─── UI helpers ───────────────────────────────────────────────────────────────
@@ -1172,18 +1381,44 @@ async function init() {
     state.settings.countInBars        = saved.countInBars        ?? 1;
   }
 
-  // Load persisted tracks
-  const rows = await dbGetAll('tracks');
-  if (rows.length) {
+  // Load projects
+  state.projects = await dbGetAll('projects');
+
+  // First run or migration: ensure at least one project exists
+  if (!state.projects.length) {
+    const defaultProject = { id: Date.now().toString(), name: 'Project 1', createdAt: Date.now() };
+    await dbPut('projects', defaultProject);
+    state.projects.push(defaultProject);
+  }
+
+  // Restore active project
+  const appstate = await dbGet('appstate', 'activeProjectId');
+  const savedActiveId = appstate?.value;
+  state.activeProjectId = state.projects.find(p => p.id === savedActiveId)
+    ? savedActiveId
+    : state.projects[0].id;
+
+  // Migrate tracks from before projects existed (no projectId) → assign to first project
+  const allRows = await dbGetAll('tracks');
+  const orphans = allRows.filter(r => !r.projectId);
+  for (const orphan of orphans) {
+    orphan.projectId = state.projects[0].id;
+    await dbPut('tracks', orphan);
+  }
+
+  // Load tracks for the active project
+  const projectRows = allRows.filter(r => (r.projectId ?? state.projects[0].id) === state.activeProjectId);
+  if (projectRows.length) {
     const ac = ctx();
-    for (const row of rows) {
+    for (const row of projectRows) {
       try {
         const buffer   = await decodeBlob(row.blob);
         const gainNode = ac.createGain();
         gainNode.connect(ac.destination);
         gainNode.gain.value = row.volume ?? 1.0;
         state.tracks.push({ id: row.id, name: row.name, blob: row.blob, buffer,
-          duration: row.duration, gainNode, muted: row.muted ?? false });
+          duration: row.duration, gainNode, muted: row.muted ?? false,
+          projectId: state.activeProjectId });
       } catch (e) {
         console.warn('Could not restore track', row.id, e);
       }
@@ -1191,6 +1426,7 @@ async function init() {
   }
 
   syncSettingsUI();
+  updateProjectUI();
   renderTracks();
   updateUI();
 
@@ -1209,6 +1445,25 @@ async function init() {
   document.getElementById('exportMixBtn').addEventListener('click', exportMix);
   document.getElementById('exportAllBtn').addEventListener('click', async () => {
     for (const t of state.tracks) await exportSingleTrack(t);
+  });
+
+  // ── Projects open/close ──
+  document.getElementById('projectBtn').addEventListener('click', () => {
+    renderProjectList();
+    document.getElementById('projectsOverlay').classList.add('open');
+  });
+  document.getElementById('closeProjectsBtn').addEventListener('click', () =>
+    document.getElementById('projectsOverlay').classList.remove('open')
+  );
+  document.getElementById('projectsOverlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('projectsOverlay'))
+      document.getElementById('projectsOverlay').classList.remove('open');
+  });
+  document.getElementById('newProjectBtn').addEventListener('click', async () => {
+    const name = prompt('Project name:', `Project ${state.projects.length + 1}`);
+    if (name && name.trim()) {
+      await createProject(name.trim());
+    }
   });
 
   // ── Settings open/close ──
