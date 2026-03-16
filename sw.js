@@ -1,4 +1,4 @@
-const CACHE = 'humming-v5';
+const CACHE = 'humming-v6';
 const ASSETS = ['/Humming-app/', '/Humming-app/index.html', '/Humming-app/manifest.json'];
 
 self.addEventListener('install', e => {
