@@ -1,5 +1,5 @@
 const CACHE = 'humming-v1';
-const ASSETS = ['/', '/index.html', '/manifest.json'];
+const ASSETS = ['/Humming-app/', '/Humming-app/index.html', '/Humming-app/manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
