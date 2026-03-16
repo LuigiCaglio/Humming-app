@@ -367,6 +367,30 @@
       cursor: pointer;
     }
 
+    /* ── Master volume ── */
+    .master-vol {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 20px 14px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .master-vol label {
+      font-size: 12px;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    .master-vol-value {
+      font-size: 12px;
+      color: var(--text-dim);
+      min-width: 32px;
+      text-align: right;
+    }
+
     /* ── Export bar ── */
     .export-bar {
       display: none;
@@ -656,6 +680,12 @@
   </div>
 </div>
 
+<div class="master-vol">
+  <label>Master</label>
+  <input type="range" class="volume-slider" id="masterVolSlider" min="0" max="1" step="0.01" value="0.7">
+  <span class="master-vol-value" id="masterVolDisplay">70%</span>
+</div>
+
 <div class="track-list" id="trackList">
   <div class="empty-state" id="emptyState">
     <div class="empty-icon">🎙</div>
@@ -753,6 +783,7 @@ const state = {
   isRecording: false,
   isPlaying: false,
   audioCtx: null,
+  masterGain: null,
   activeSources: [],
   mediaRecorder: null,
   recordingChunks: [],
@@ -836,7 +867,19 @@ async function persistTrack(track) {
 
 function ctx() {
   if (!state.audioCtx || state.audioCtx.state === 'closed') {
-    state.audioCtx = new AudioContext();
+    const ac = new AudioContext();
+    // Master gain → limiter → destination
+    state.masterGain = ac.createGain();
+    state.masterGain.gain.value = 0.7;
+    const limiter = ac.createDynamicsCompressor();
+    limiter.threshold.value = -1;   // kicks in only near 0 dBFS
+    limiter.knee.value      = 0;
+    limiter.ratio.value     = 20;   // true limiter
+    limiter.attack.value    = 0.001;
+    limiter.release.value   = 0.1;
+    state.masterGain.connect(limiter);
+    limiter.connect(ac.destination);
+    state.audioCtx = ac;
   }
   if (state.audioCtx.state === 'suspended') state.audioCtx.resume();
   return state.audioCtx;
@@ -853,7 +896,7 @@ function scheduleClick(audioCtx, time, accent) {
   const osc = audioCtx.createOscillator();
   const env = audioCtx.createGain();
   osc.connect(env);
-  env.connect(audioCtx.destination);
+  env.connect(state.masterGain ?? audioCtx.destination);
   osc.frequency.value = accent ? 1200 : 800;
   env.gain.setValueAtTime(accent ? 0.7 : 0.45, time);
   env.gain.exponentialRampToValueAtTime(0.0001, time + 0.055);
@@ -981,8 +1024,8 @@ async function stopRecording() {
   const buffer = await decodeBlob(blob);
   const ac     = ctx();
   const gainNode = ac.createGain();
-  gainNode.connect(ac.destination);
-  gainNode.gain.value = 1.0;
+  gainNode.connect(state.masterGain);
+  gainNode.gain.value = 0.8;
 
   const track = {
     id: Date.now().toString(),
@@ -1151,8 +1194,8 @@ async function loadProject(projectId) {
       try {
         const buffer   = await decodeBlob(row.blob);
         const gainNode = ac.createGain();
-        gainNode.connect(ac.destination);
-        gainNode.gain.value = row.volume ?? 1.0;
+        gainNode.connect(state.masterGain);
+        gainNode.gain.value = row.volume ?? 0.8;
         state.tracks.push({ id: row.id, name: row.name, blob: row.blob, buffer,
           duration: row.duration, gainNode, muted: row.muted ?? false, projectId });
       } catch (e) { console.warn('Could not load track', row.id, e); }
@@ -1414,8 +1457,8 @@ async function init() {
       try {
         const buffer   = await decodeBlob(row.blob);
         const gainNode = ac.createGain();
-        gainNode.connect(ac.destination);
-        gainNode.gain.value = row.volume ?? 1.0;
+        gainNode.connect(state.masterGain);
+        gainNode.gain.value = row.volume ?? 0.8;
         state.tracks.push({ id: row.id, name: row.name, blob: row.blob, buffer,
           duration: row.duration, gainNode, muted: row.muted ?? false,
           projectId: state.activeProjectId });
@@ -1429,6 +1472,14 @@ async function init() {
   updateProjectUI();
   renderTracks();
   updateUI();
+
+  // ── Master volume ──
+  ctx(); // ensure masterGain exists
+  document.getElementById('masterVolSlider').addEventListener('input', e => {
+    const val = parseFloat(e.target.value);
+    state.masterGain.gain.value = val;
+    document.getElementById('masterVolDisplay').textContent = Math.round(val * 100) + '%';
+  });
 
   // ── Transport ──
   document.getElementById('recordBtn').addEventListener('click', () => {
