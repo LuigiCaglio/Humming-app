@@ -2,7 +2,7 @@
   "name": "Humming",
   "short_name": "Humming",
   "description": "Multitrack voice and instrument recorder",
-  "start_url": "/",
+  "start_url": "/Humming-app/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0f0f0f",
