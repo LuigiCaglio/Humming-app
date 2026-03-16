@@ -834,6 +834,9 @@ async function startRecording() {
     return;
   }
 
+  // getUserMedia can suspend the AudioContext on Android — always resume before scheduling
+  await ac.resume();
+
   let recordStartTime;
 
   if (state.settings.metronomeCountIn) {
