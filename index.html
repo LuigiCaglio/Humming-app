@@ -870,7 +870,8 @@ function ctx() {
     const ac = new AudioContext();
     // Master gain → limiter → destination
     state.masterGain = ac.createGain();
-    state.masterGain.gain.value = 0.7;
+    const sliderEl = document.getElementById('masterVolSlider');
+    state.masterGain.gain.value = sliderEl ? parseFloat(sliderEl.value) : 0.7;
     const limiter = ac.createDynamicsCompressor();
     limiter.threshold.value = -1;   // kicks in only near 0 dBFS
     limiter.knee.value      = 0;
@@ -1474,10 +1475,9 @@ async function init() {
   updateUI();
 
   // ── Master volume ──
-  ctx(); // ensure masterGain exists
   document.getElementById('masterVolSlider').addEventListener('input', e => {
     const val = parseFloat(e.target.value);
-    state.masterGain.gain.value = val;
+    if (state.masterGain) state.masterGain.gain.value = val;
     document.getElementById('masterVolDisplay').textContent = Math.round(val * 100) + '%';
   });
 
