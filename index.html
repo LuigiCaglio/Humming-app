@@ -1483,7 +1483,8 @@ async function init() {
 
   // ── Transport ──
   document.getElementById('recordBtn').addEventListener('click', () => {
-    if (state.isRecording) stopRecording(); else startRecording();
+    if (state.isRecording) stopRecording();
+    else startRecording().catch(e => { console.error(e); setStatus('Error: ' + e.message, null); });
   });
   document.getElementById('playBtn').addEventListener('click', () => {
     if (!state.isPlaying) startPlayback();
@@ -1580,7 +1581,10 @@ async function init() {
   );
 }
 
-init().catch(console.error);
+init().catch(e => {
+  console.error(e);
+  setStatus('Init error: ' + e.message, null);
+});
 
 // ─── Service worker ───────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
