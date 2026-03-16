@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Humming</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface2: #242424;
+      --border: #333;
+      --accent: #e05555;
+      --accent2: #5ba85b;
+      --text: #e8e8e8;
+      --text-dim: #888;
+      --radius: 12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .app-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .btn-header {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ── Transport ── */
+    .transport {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 18px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .transport-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+      gap: 8px;
+    }
+
+    .btn:active { transform: scale(0.96); }
+    .btn:disabled { opacity: 0.3; pointer-events: none; }
+
+    .btn-record {
+      flex: 1;
+      height: 64px;
+      background: var(--accent);
+      color: white;
+      font-size: 18px;
+    }
+
+    .btn-play {
+      flex: 1;
+      height: 64px;
+      background: var(--accent2);
+      color: white;
+      font-size: 18px;
+    }
+
+    .btn-stop {
+      width: 64px;
+      height: 64px;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      font-size: 22px;
+    }
+
+    .record-dot {
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: white;
+      flex-shrink: 0;
+    }
+
+    .btn-record.recording .record-dot {
+      animation: blink 0.8s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.2; }
+    }
+
+    /* ── Status bar ── */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-dim);
+      min-height: 18px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      flex-shrink: 0;
+    }
+
+    .status-dot.recording { background: var(--accent); animation: blink 0.8s infinite; }
+    .status-dot.playing   { background: var(--accent2); }
+
+    /* ── Track list ── */
+    .track-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 60px 20px;
+      color: var(--text-dim);
+      text-align: center;
+    }
+
+    .empty-icon { font-size: 52px; opacity: 0.35; }
+
+    .empty-state p { font-size: 15px; line-height: 1.6; }
+
+    .track-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .track-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .track-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-dim);
+      flex-shrink: 0;
+    }
+
+    .track-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .track-name {
+      font-size: 15px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .track-duration {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    .track-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-icon:active { transform: scale(0.91); }
+    .btn-icon.muted  { color: var(--accent); border-color: var(--accent); }
+
+    .track-volume {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .track-volume label {
+      font-size: 12px;
+      color: var(--text-dim);
+      width: 26px;
+      flex-shrink: 0;
+    }
+
+    .volume-slider {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--text);
+      cursor: pointer;
+    }
+
+    /* ── Export bar ── */
+    .export-bar {
+      display: none;
+      gap: 10px;
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .btn-export {
+      flex: 1;
+      height: 48px;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* ── Settings panel (bottom sheet) ── */
+    .settings-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s;
+    }
+
+    .settings-overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .settings-sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-radius: 20px 20px 0 0;
+      padding: 24px 20px 44px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    .settings-overlay.open .settings-sheet {
+      transform: translateY(0);
+    }
+
+    .settings-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .setting-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .setting-row > label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    /* Toggle */
+    .toggle-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .toggle {
+      position: relative;
+      width: 48px;
+      height: 28px;
+      flex-shrink: 0;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: white;
+      top: 3px;
+      left: 3px;
+      transition: transform 0.2s;
+    }
+
+    .toggle input:checked + .toggle-track { background: var(--accent2); }
+    .toggle input:checked + .toggle-track::after { transform: translateX(20px); }
+
+    .toggle-label { font-size: 15px; }
+
+    /* BPM row */
+    .bpm-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .bpm-display {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 64px;
+    }
+
+    .bpm-value {
+      font-size: 36px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .bpm-unit {
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.5px;
+    }
+
+    .bpm-steppers {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .btn-step {
+      width: 36px;
+      height: 28px;
+      border-radius: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-step:active { transform: scale(0.92); }
+
+    .btn-tap {
+      flex: 1;
+      height: 56px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: border-color 0.1s, color 0.1s;
+    }
+
+    .btn-tap:active, .btn-tap.tapping {
+      border-color: var(--accent2);
+      color: var(--accent2);
+    }
+
+    /* Count-in segment control */
+    .segment-control {
+      display: flex;
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 2px;
+    }
+
+    .seg-btn {
+      flex: 1;
+      height: 36px;
+      border-radius: 7px;
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .seg-btn.active {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-done {
+      height: 50px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ── Count-in overlay ── */
+    .countdown-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.88);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
+    }
+
+    .countdown-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .countdown-number {
+      font-size: 128px;
+      font-weight: 800;
+      line-height: 1;
+      color: var(--accent);
+    }
+
+    .countdown-label {
+      font-size: 16px;
+      color: var(--text-dim);
+      margin-top: 16px;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="app-title">Humming</div>
+  <button class="btn-header" id="settingsBtn" title="Settings">⚙</button>
+</header>
+
+<div class="transport">
+  <div class="transport-buttons">
+    <button class="btn btn-record" id="recordBtn">
+      <span class="record-dot"></span>
+      <span id="recordLabel">Record</span>
+    </button>
+    <button class="btn btn-play" id="playBtn">
+      <span>▶</span>
+      <span id="playLabel">Play</span>
+    </button>
+    <button class="btn btn-stop" id="stopBtn">■</button>
+  </div>
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Ready</span>
+  </div>
+</div>
+
+<div class="track-list" id="trackList">
+  <div class="empty-state" id="emptyState">
+    <div class="empty-icon">🎙</div>
+    <p>No tracks yet.<br>Press Record to start.</p>
+  </div>
+</div>
+
+<div class="export-bar" id="exportBar">
+  <button class="btn btn-export" id="exportMixBtn">↓ Mix (WAV)</button>
+  <button class="btn btn-export" id="exportAllBtn">↓ All Tracks</button>
+</div>
+
+<!-- Settings bottom sheet -->
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-sheet">
+    <div class="settings-title">Settings</div>
+
+    <div class="setting-row">
+      <label>Count-in metronome</label>
+      <div class="toggle-wrap">
+        <label class="toggle">
+          <input type="checkbox" id="countInToggle" checked>
+          <span class="toggle-track"></span>
+        </label>
+        <span class="toggle-label" id="countInLabel">On</span>
+      </div>
+    </div>
+
+    <div class="setting-row">
+      <label>Metronome while playing</label>
+      <div class="toggle-wrap">
+        <label class="toggle">
+          <input type="checkbox" id="metronomePlaybackToggle">
+          <span class="toggle-track"></span>
+        </label>
+        <span class="toggle-label" id="metronomePlaybackLabel">Off</span>
+      </div>
+    </div>
+
+    <div class="setting-row" id="bpmSetting">
+      <label>BPM</label>
+      <div class="bpm-row">
+        <div class="bpm-steppers">
+          <button class="btn-step" id="bpmUp">+</button>
+          <button class="btn-step" id="bpmDown">−</button>
+        </div>
+        <div class="bpm-display">
+          <div class="bpm-value" id="bpmDisplay">120</div>
+          <div class="bpm-unit">BPM</div>
+        </div>
+        <button class="btn-tap" id="tapBtn">TAP TEMPO</button>
+      </div>
+    </div>
+
+    <div class="setting-row" id="countInSetting">
+      <label>Count-in bars</label>
+      <div class="segment-control">
+        <button class="seg-btn active" data-bars="1">1 bar</button>
+        <button class="seg-btn" data-bars="2">2 bars</button>
+        <button class="seg-btn" data-bars="4">4 bars</button>
+      </div>
+    </div>
+
+    <button class="btn-done" id="closeSettingsBtn">Done</button>
+  </div>
+</div>
+
+<!-- Count-in overlay -->
+<div class="countdown-overlay" id="countdownOverlay">
+  <div class="countdown-number" id="countdownNumber">4</div>
+  <div class="countdown-label">Get ready…</div>
+</div>
+
+<script type="module">
+
+// ─── State ────────────────────────────────────────────────────────────────────
+
+const state = {
+  tracks: [],       // { id, name, blob, buffer, duration, gainNode, muted }
+  settings: { metronomeCountIn: true, metronomePlayback: false, bpm: 120, countInBars: 1 },
+  isRecording: false,
+  isPlaying: false,
+  audioCtx: null,
+  activeSources: [],
+  mediaRecorder: null,
+  recordingChunks: [],
+  stream: null,
+  stopMetronome: null,
+};
+
+// ─── IndexedDB ────────────────────────────────────────────────────────────────
+
+let db;
+
+async function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('humming-v1', 1);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('tracks'))   d.createObjectStore('tracks',   { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings', { keyPath: 'key' });
+    };
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+function dbPut(store, value) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).put(value);
+    tx.oncomplete = resolve;
+    tx.onerror = e => reject(e.target.error);
+  });
+}
+
+function dbDelete(store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).delete(key);
+    tx.oncomplete = resolve;
+    tx.onerror = e => reject(e.target.error);
+  });
+}
+
+function dbGetAll(store) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).getAll();
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+function dbGet(store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).get(key);
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function persistTrack(track) {
+  await dbPut('tracks', {
+    id: track.id,
+    name: track.name,
+    blob: track.blob,
+    duration: track.duration,
+    volume: track.gainNode.gain.value,
+    muted: track.muted,
+  });
+}
+
+// ─── Audio context ────────────────────────────────────────────────────────────
+
+function ctx() {
+  if (!state.audioCtx || state.audioCtx.state === 'closed') {
+    state.audioCtx = new AudioContext();
+  }
+  if (state.audioCtx.state === 'suspended') state.audioCtx.resume();
+  return state.audioCtx;
+}
+
+async function decodeBlob(blob) {
+  const ab = await blob.arrayBuffer();
+  return ctx().decodeAudioData(ab);
+}
+
+// ─── Metronome ────────────────────────────────────────────────────────────────
+
+function scheduleClick(audioCtx, time, accent) {
+  const osc = audioCtx.createOscillator();
+  const env = audioCtx.createGain();
+  osc.connect(env);
+  env.connect(audioCtx.destination);
+  osc.frequency.value = accent ? 1200 : 800;
+  env.gain.setValueAtTime(accent ? 0.7 : 0.45, time);
+  env.gain.exponentialRampToValueAtTime(0.0001, time + 0.055);
+  osc.start(time);
+  osc.stop(time + 0.06);
+}
+
+// Starts scheduling metronome clicks. Returns a stop function.
+// onBeat(beatIndex, scheduledTime) called for each beat scheduled.
+function startMetronome(audioCtx, fromTime, bpm, onBeat) {
+  const interval = 60 / bpm;
+  let beat = 0;
+  let nextTime = fromTime;
+
+  const id = setInterval(() => {
+    const lookAhead = 0.12;
+    while (nextTime < audioCtx.currentTime + lookAhead) {
+      scheduleClick(audioCtx, nextTime, beat % 4 === 0);
+      if (onBeat) onBeat(beat, nextTime);
+      nextTime += interval;
+      beat++;
+    }
+  }, 25);
+
+  return () => clearInterval(id);
+}
+
+// Run count-in. Returns promise that resolves with the AudioContext time
+// at which recording should start (= time of the first beat after count-in).
+function runCountIn(audioCtx, bpm, bars) {
+  return new Promise(resolve => {
+    const beatsTotal = bars * 4;
+    const beatInterval = 60 / bpm;
+    const startTime = audioCtx.currentTime + 0.12;
+
+    const overlay = document.getElementById('countdownOverlay');
+    const numEl   = document.getElementById('countdownNumber');
+    overlay.classList.add('active');
+
+    // Show "1" immediately
+    numEl.textContent = '1';
+
+    let resolved = false;
+
+    const stop = startMetronome(audioCtx, startTime, bpm, (beatIdx, beatTime) => {
+      // Update countdown display
+      const barBeat = (beatIdx % 4) + 1;
+      const delayMs = Math.max(0, (beatTime - audioCtx.currentTime) * 1000);
+      setTimeout(() => { numEl.textContent = barBeat; }, delayMs);
+
+      if (beatIdx === beatsTotal - 1) {
+        // Last beat of count-in: resolve when it fires, pass next beat time as record start
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            stop();
+            overlay.classList.remove('active');
+            resolve(beatTime + beatInterval);
+          }
+        }, delayMs);
+      }
+    });
+  });
+}
+
+// ─── Recording ────────────────────────────────────────────────────────────────
+
+async function startRecording() {
+  const ac = ctx();
+  stopAllPlayback();
+
+  // Acquire mic
+  try {
+    state.stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  } catch {
+    setStatus('Microphone access denied', null);
+    alert('Humming needs microphone access. Please allow it in your browser settings.');
+    return;
+  }
+
+  let recordStartTime;
+
+  if (state.settings.metronomeCountIn) {
+    setStatus('Count-in…', null);
+    recordStartTime = await runCountIn(ac, state.settings.bpm, state.settings.countInBars);
+    state.stopMetronome = startMetronome(ac, recordStartTime, state.settings.bpm, null);
+  } else {
+    recordStartTime = ac.currentTime + 0.05;
+  }
+
+  // Play existing tracks from the top
+  playTracks(ac, 0);
+
+  // Start MediaRecorder
+  state.recordingChunks = [];
+  state.mediaRecorder = new MediaRecorder(state.stream, { mimeType: 'audio/webm;codecs=opus' });
+  state.mediaRecorder.ondataavailable = e => { if (e.data.size > 0) state.recordingChunks.push(e.data); };
+  state.mediaRecorder.start(100);
+
+  state.isRecording = true;
+  updateUI();
+  setStatus(`Recording track ${state.tracks.length + 1}…`, 'recording');
+}
+
+async function stopRecording() {
+  if (!state.isRecording) return;
+
+  state.isRecording = false;
+
+  if (state.stopMetronome) { state.stopMetronome(); state.stopMetronome = null; }
+  stopAllPlayback();
+
+  await new Promise(resolve => {
+    state.mediaRecorder.onstop = resolve;
+    state.mediaRecorder.stop();
+  });
+
+  state.stream.getTracks().forEach(t => t.stop());
+  state.stream = null;
+
+  const blob   = new Blob(state.recordingChunks, { type: 'audio/webm;codecs=opus' });
+  const buffer = await decodeBlob(blob);
+  const ac     = ctx();
+  const gainNode = ac.createGain();
+  gainNode.connect(ac.destination);
+  gainNode.gain.value = 1.0;
+
+  const track = {
+    id: Date.now().toString(),
+    name: `Track ${state.tracks.length + 1}`,
+    blob,
+    buffer,
+    duration: buffer.duration,
+    gainNode,
+    muted: false,
+  };
+
+  state.tracks.push(track);
+  await persistTrack(track);
+
+  updateUI();
+  setStatus(`Track ${state.tracks.length} added — ${fmt(track.duration)}`, null);
+  renderTracks();
+}
+
+// ─── Playback ─────────────────────────────────────────────────────────────────
+
+function playTracks(audioCtx, offset) {
+  stopAllPlayback();
+  state.activeSources = state.tracks.map(track => {
+    if (track.muted) return null;
+    const src = audioCtx.createBufferSource();
+    src.buffer = track.buffer;
+    src.connect(track.gainNode);
+    src.start(audioCtx.currentTime, offset);
+    return src;
+  });
+}
+
+function stopAllPlayback() {
+  state.activeSources.forEach(s => { if (s) try { s.stop(); } catch {} });
+  state.activeSources = [];
+}
+
+async function startPlayback() {
+  if (!state.tracks.length) return;
+  const ac = ctx();
+
+  if (state.settings.metronomePlayback) {
+    state.stopMetronome = startMetronome(ac, ac.currentTime, state.settings.bpm, null);
+  }
+
+  playTracks(ac, 0);
+  state.isPlaying = true;
+  updateUI();
+  setStatus('Playing…', 'playing');
+
+  const maxDur = Math.max(...state.tracks.map(t => t.duration));
+  setTimeout(() => { if (state.isPlaying) stopPlayback(); }, (maxDur + 0.5) * 1000);
+}
+
+function stopPlayback() {
+  if (state.stopMetronome) { state.stopMetronome(); state.stopMetronome = null; }
+  stopAllPlayback();
+  state.isPlaying = false;
+  updateUI();
+  setStatus('Ready', null);
+}
+
+// ─── WAV export ───────────────────────────────────────────────────────────────
+
+function encodeWAV(audioBuffer) {
+  const nCh  = audioBuffer.numberOfChannels;
+  const sr   = audioBuffer.sampleRate;
+  const len  = audioBuffer.length;
+  const buf  = new ArrayBuffer(44 + len * nCh * 2);
+  const view = new DataView(buf);
+  const str  = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+
+  str(0,  'RIFF');
+  view.setUint32(4,  buf.byteLength - 8, true);
+  str(8,  'WAVE');
+  str(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1,  true);      // PCM
+  view.setUint16(22, nCh, true);
+  view.setUint32(24, sr,  true);
+  view.setUint32(28, sr * nCh * 2, true);
+  view.setUint16(32, nCh * 2, true);
+  view.setUint16(34, 16,  true);
+  str(36, 'data');
+  view.setUint32(40, len * nCh * 2, true);
+
+  let off = 44;
+  for (let i = 0; i < len; i++) {
+    for (let ch = 0; ch < nCh; ch++) {
+      const s = Math.max(-1, Math.min(1, audioBuffer.getChannelData(ch)[i]));
+      view.setInt16(off, s < 0 ? s * 32768 : s * 32767, true);
+      off += 2;
+    }
+  }
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+function download(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function exportMix() {
+  if (!state.tracks.length) return;
+  setStatus('Rendering mix…', null);
+
+  const sr      = ctx().sampleRate;
+  const maxDur  = Math.max(...state.tracks.map(t => t.duration));
+  const offline = new OfflineAudioContext(2, Math.ceil(maxDur * sr), sr);
+
+  for (const t of state.tracks) {
+    if (t.muted) continue;
+    const src  = offline.createBufferSource();
+    const gain = offline.createGain();
+    src.buffer = t.buffer;
+    gain.gain.value = t.gainNode.gain.value;
+    src.connect(gain); gain.connect(offline.destination);
+    src.start(0);
+  }
+
+  const rendered = await offline.startRendering();
+  download(encodeWAV(rendered), 'humming-mix.wav');
+  setStatus('Mix exported', null);
+}
+
+async function exportSingleTrack(track) {
+  setStatus(`Exporting ${track.name}…`, null);
+
+  const sr      = ctx().sampleRate;
+  const offline = new OfflineAudioContext(
+    track.buffer.numberOfChannels, track.buffer.length, sr
+  );
+  const src  = offline.createBufferSource();
+  const gain = offline.createGain();
+  src.buffer = track.buffer;
+  gain.gain.value = track.gainNode.gain.value;
+  src.connect(gain); gain.connect(offline.destination);
+  src.start(0);
+
+  const rendered = await offline.startRendering();
+  download(encodeWAV(rendered), `${track.name.toLowerCase().replace(/\s+/g, '-')}.wav`);
+  setStatus('Track exported', null);
+}
+
+// ─── UI helpers ───────────────────────────────────────────────────────────────
+
+const fmt = secs => {
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
+function setStatus(text, mode) {
+  document.getElementById('statusText').textContent = text;
+  document.getElementById('statusDot').className = 'status-dot' + (mode ? ` ${mode}` : '');
+}
+
+function updateUI() {
+  const hasTracks = state.tracks.length > 0;
+
+  document.getElementById('recordBtn').classList.toggle('recording', state.isRecording);
+  document.getElementById('recordLabel').textContent = state.isRecording ? 'Stop Rec' : 'Record';
+  document.getElementById('playLabel').textContent   = state.isPlaying ? 'Playing' : 'Play';
+
+  document.getElementById('stopBtn').disabled   = !state.isRecording && !state.isPlaying;
+  document.getElementById('playBtn').disabled   = state.isRecording || !hasTracks;
+  document.getElementById('recordBtn').disabled = state.isPlaying;
+
+  document.getElementById('exportBar').style.display = hasTracks ? 'flex' : 'none';
+}
+
+function renderTracks() {
+  const list  = document.getElementById('trackList');
+  const empty = document.getElementById('emptyState');
+
+  list.querySelectorAll('.track-card').forEach(el => el.remove());
+  empty.style.display = state.tracks.length ? 'none' : 'flex';
+
+  state.tracks.forEach((track, i) => {
+    const card = document.createElement('div');
+    card.className = 'track-card';
+    card.innerHTML = `
+      <div class="track-header">
+        <div class="track-number">${i + 1}</div>
+        <div class="track-info">
+          <div class="track-name">${track.name}</div>
+          <div class="track-duration">${fmt(track.duration)}</div>
+        </div>
+        <div class="track-actions">
+          <button class="btn-icon mute-btn${track.muted ? ' muted' : ''}" title="Mute">
+            ${track.muted ? '🔇' : '🔊'}
+          </button>
+          <button class="btn-icon dl-btn" title="Export track as WAV">↓</button>
+          <button class="btn-icon del-btn" title="Delete track">✕</button>
+        </div>
+      </div>
+      <div class="track-volume">
+        <label>Vol</label>
+        <input type="range" class="volume-slider" min="0" max="1.5" step="0.01"
+               value="${track.gainNode.gain.value}">
+      </div>
+    `;
+
+    card.querySelector('.mute-btn').addEventListener('click', () => {
+      track.muted = !track.muted;
+      persistTrack(track);
+      renderTracks();
+    });
+
+    card.querySelector('.dl-btn').addEventListener('click', () => exportSingleTrack(track));
+
+    card.querySelector('.del-btn').addEventListener('click', async () => {
+      if (state.isRecording || state.isPlaying) stopPlayback();
+      state.tracks.splice(i, 1);
+      await dbDelete('tracks', track.id);
+      updateUI();
+      renderTracks();
+      setStatus(state.tracks.length ? `${state.tracks.length} track${state.tracks.length > 1 ? 's' : ''}` : 'Ready', null);
+    });
+
+    card.querySelector('.volume-slider').addEventListener('input', e => {
+      track.gainNode.gain.value = parseFloat(e.target.value);
+      persistTrack(track);
+    });
+
+    list.appendChild(card);
+  });
+
+  updateUI();
+}
+
+// ─── Settings UI ──────────────────────────────────────────────────────────────
+
+function syncSettingsUI() {
+  const ci = state.settings.metronomeCountIn;
+  const pb = state.settings.metronomePlayback;
+  document.getElementById('countInToggle').checked              = ci;
+  document.getElementById('countInLabel').textContent           = ci ? 'On' : 'Off';
+  document.getElementById('metronomePlaybackToggle').checked    = pb;
+  document.getElementById('metronomePlaybackLabel').textContent = pb ? 'On' : 'Off';
+  document.getElementById('bpmDisplay').textContent             = state.settings.bpm;
+  // BPM row visible if either metronome is active; count-in bars only for count-in
+  document.getElementById('bpmSetting').style.display     = (ci || pb) ? '' : 'none';
+  document.getElementById('countInSetting').style.display = ci ? '' : 'none';
+  document.querySelectorAll('.seg-btn').forEach(b =>
+    b.classList.toggle('active', parseInt(b.dataset.bars) === state.settings.countInBars)
+  );
+}
+
+// Tap tempo
+let tapTimes = [];
+let tapResetTimer = null;
+
+function handleTap() {
+  const now = performance.now();
+  tapTimes.push(now);
+  if (tapResetTimer) clearTimeout(tapResetTimer);
+  tapResetTimer = setTimeout(() => { tapTimes = []; }, 2500);
+  if (tapTimes.length > 5) tapTimes = tapTimes.slice(-5);
+
+  if (tapTimes.length >= 2) {
+    const intervals = tapTimes.slice(1).map((t, i) => t - tapTimes[i]);
+    const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    state.settings.bpm = Math.min(240, Math.max(40, Math.round(60000 / avg)));
+    syncSettingsUI();
+  }
+
+  const btn = document.getElementById('tapBtn');
+  btn.classList.add('tapping');
+  setTimeout(() => btn.classList.remove('tapping'), 120);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
+async function init() {
+  db = await openDB();
+
+  // Load persisted settings
+  const saved = await dbGet('settings', 'main');
+  if (saved) {
+    state.settings.metronomeCountIn   = saved.metronomeCountIn   ?? true;
+    state.settings.metronomePlayback  = saved.metronomePlayback  ?? false;
+    state.settings.bpm                = saved.bpm                ?? 120;
+    state.settings.countInBars        = saved.countInBars        ?? 1;
+  }
+
+  // Load persisted tracks
+  const rows = await dbGetAll('tracks');
+  if (rows.length) {
+    const ac = ctx();
+    for (const row of rows) {
+      try {
+        const buffer   = await decodeBlob(row.blob);
+        const gainNode = ac.createGain();
+        gainNode.connect(ac.destination);
+        gainNode.gain.value = row.volume ?? 1.0;
+        state.tracks.push({ id: row.id, name: row.name, blob: row.blob, buffer,
+          duration: row.duration, gainNode, muted: row.muted ?? false });
+      } catch (e) {
+        console.warn('Could not restore track', row.id, e);
+      }
+    }
+  }
+
+  syncSettingsUI();
+  renderTracks();
+  updateUI();
+
+  // ── Transport ──
+  document.getElementById('recordBtn').addEventListener('click', () => {
+    if (state.isRecording) stopRecording(); else startRecording();
+  });
+  document.getElementById('playBtn').addEventListener('click', () => {
+    if (!state.isPlaying) startPlayback();
+  });
+  document.getElementById('stopBtn').addEventListener('click', () => {
+    if (state.isRecording) stopRecording(); else stopPlayback();
+  });
+
+  // ── Export ──
+  document.getElementById('exportMixBtn').addEventListener('click', exportMix);
+  document.getElementById('exportAllBtn').addEventListener('click', async () => {
+    for (const t of state.tracks) await exportSingleTrack(t);
+  });
+
+  // ── Settings open/close ──
+  document.getElementById('settingsBtn').addEventListener('click', () =>
+    document.getElementById('settingsOverlay').classList.add('open')
+  );
+  document.getElementById('closeSettingsBtn').addEventListener('click', closeSettings);
+  document.getElementById('settingsOverlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('settingsOverlay')) closeSettings();
+  });
+
+  function closeSettings() {
+    document.getElementById('settingsOverlay').classList.remove('open');
+    dbPut('settings', { key: 'main', ...state.settings });
+  }
+
+  // ── Metronome toggles ──
+  document.getElementById('countInToggle').addEventListener('change', e => {
+    state.settings.metronomeCountIn = e.target.checked;
+    syncSettingsUI();
+  });
+  document.getElementById('metronomePlaybackToggle').addEventListener('change', e => {
+    state.settings.metronomePlayback = e.target.checked;
+    syncSettingsUI();
+  });
+
+  // ── BPM steppers ──
+  document.getElementById('bpmUp').addEventListener('click', () => {
+    state.settings.bpm = Math.min(240, state.settings.bpm + 1);
+    syncSettingsUI();
+  });
+  document.getElementById('bpmDown').addEventListener('click', () => {
+    state.settings.bpm = Math.max(40, state.settings.bpm - 1);
+    syncSettingsUI();
+  });
+
+  // Long-press steppers for fast scroll
+  let stepInterval = null;
+  function startStep(dir) {
+    stepInterval = setInterval(() => {
+      state.settings.bpm = Math.min(240, Math.max(40, state.settings.bpm + dir));
+      syncSettingsUI();
+    }, 80);
+  }
+  function endStep() { if (stepInterval) { clearInterval(stepInterval); stepInterval = null; } }
+
+  document.getElementById('bpmUp').addEventListener('pointerdown', () => startStep(1));
+  document.getElementById('bpmDown').addEventListener('pointerdown', () => startStep(-1));
+  ['pointerup', 'pointerleave'].forEach(ev => {
+    document.getElementById('bpmUp').addEventListener(ev, endStep);
+    document.getElementById('bpmDown').addEventListener(ev, endStep);
+  });
+
+  // ── Tap tempo ──
+  document.getElementById('tapBtn').addEventListener('click', handleTap);
+
+  // ── Count-in selector ──
+  document.querySelectorAll('.seg-btn').forEach(btn =>
+    btn.addEventListener('click', () => {
+      state.settings.countInBars = parseInt(btn.dataset.bars);
+      syncSettingsUI();
+    })
+  );
+}
+
+init().catch(console.error);
+
+// ─── Service worker ───────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(console.warn);
+}
+</script>
+</body>
+</html>
